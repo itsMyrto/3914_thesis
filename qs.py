@@ -1,4 +1,4 @@
-from math import ceil, log2, exp, sqrt
+from math import ceil, log2, exp, sqrt, log
 import time
 
 def sieve_of_eratosthenes(B: int) -> list[int]:
@@ -118,7 +118,7 @@ def filter_b_smooth_candidates(candidates: list[int], vals: list[int], factor_ba
         for p in factor_base:
             while num % p == 0:
                 num //= p
-        if num == 1:
+        if num == 1 or num == -1:
             b_smooth_numbers.append(candidates[i])
             x.append(vals[i])
     return b_smooth_numbers, x
@@ -128,7 +128,7 @@ def get_b_smooth_numbers(n: int, factor_base: list[int], sieve_start: int, sieve
     """
     This function generates the B-smooth numbers using the logarithm approximation.
     The steps:
-    1. Calculate the values of Q(xi) = (square_root(n) + x)^2 - n and the logarithm of Q(xi), for xi [M,N] with M<N and M,N>0, which is the sieving subinterval
+    1. Calculate the values of Q(xi) = (square_root(n) + x)^2 - n and the logarithm of Q(xi), for xi [M,N] with M<N (can be negative or positive), which is the sieving subinterval
     2. For each prime number in the factor base (excluding 2), compute the roots of x^2 ≡ n (mod p) using the Tonelli-Shanks algorithm
     3. For each root, subtract from the logarithms of Q(xi) the value log(p) (p the prime), for xi = r + i*p, where r root and i integer between 1 and N
     4. Set a threshold and for each Q(xi) value test if is less than the threshold. If so, the Q(xi) value is considered to be B-smooth candidate
@@ -148,30 +148,55 @@ def get_b_smooth_numbers(n: int, factor_base: list[int], sieve_start: int, sieve
     q_xi_log = []
     n_root = ceil(sqrt(n))
 
-    for x in range(sieve_start, sieve_end):
+    step = 1
+    if sieve_end < 0:
+        step *= -1
+
+    for x in range(sieve_start, sieve_end, step):
         num = abs((x + n_root) ** 2 - n)
         q_xi.append(num)
         q_xi_log.append(round(log2(num)))
 
 
-    for p in factor_base[1:]:
-        r1, r2 = tonelli_shanks(n, p)
-        logp = log2(p)
-        for r in (r1, r2):
-            pos = (r - n_root - sieve_start) % p
-            while pos < sieve_end - sieve_start:
-                q_xi_log[pos] -= logp
-                pos += p
+    if sieve_end > 0:
+        for p in factor_base[1:]:
+            r1, r2 = tonelli_shanks(n, p)
+            logp = log2(p)
+            for r in (r1, r2):
+                pos = (r - n_root - sieve_start) % p
+                while pos < sieve_end - sieve_start:
+                    q_xi_log[pos] -= logp
+                    pos += p
+    else:
+        for p in factor_base[1:]:
+            r1, r2 = tonelli_shanks(n, p)
+            logp = log2(p)
+            for r in (r1, r2):
+                pos = (r - n_root - sieve_start) % p
+                if pos < sieve_start - sieve_end:
+                    q_xi_log[pos] -= logp
+                    pos -= p
+                    pos *= (-1)
+                    while pos < sieve_start - sieve_end:
+                        q_xi_log[pos] -= logp
+                        pos += p
+
 
     threshold = 10
 
     b_smooth_candidates = []
     x = []
 
-    for i in range(len(q_xi_log)):
-        if q_xi_log[i] < threshold:
-            b_smooth_candidates.append(q_xi[i])
-            x.append(i + sieve_start + n_root)
+    if sieve_end > 0:
+        for i in range(len(q_xi_log)):
+            if q_xi_log[i] < threshold:
+                b_smooth_candidates.append(q_xi[i])
+                x.append(i + sieve_start + n_root)
+    else:
+        for i in range(len(q_xi_log)):
+            if q_xi_log[i] < threshold:
+                b_smooth_candidates.append((-1) * q_xi[i])
+                x.append(-i + sieve_start + n_root)
 
     return filter_b_smooth_candidates(b_smooth_candidates, x, factor_base)
 
@@ -198,6 +223,7 @@ def build_exponent_matrix(smooth_numbers: list[int], factor_base: list[int]) -> 
             counter %= 2
             bit_vector[pos] = bit_vector[pos] << 1
             bit_vector[pos] = bit_vector[pos] | counter
+
         pos += 1
 
     return bit_vector
@@ -261,7 +287,6 @@ def gauss_elimination(matrix: list[int], m: int, n: int) -> tuple[list[int], lis
     free_cols = []
     pivot_cols = []
     for col in range(m):
-
         if get_bit(matrix[topmost_row], col) != 1:
             flag = False
             for row in range(topmost_row + 1, n):
@@ -285,6 +310,9 @@ def gauss_elimination(matrix: list[int], m: int, n: int) -> tuple[list[int], lis
 
         pivot_cols.append(col)
         topmost_row += 1
+
+        if topmost_row == n:
+            break
 
 
     return matrix, pivot_cols, free_cols
@@ -350,9 +378,15 @@ def quadratic_sieve(n: int):
     :return: The factors, if found
     """
 
-    L = round(exp(sqrt((log2(n)*log2(log2(n))))))
-    B = round(exp(0.5 * sqrt((log2(n)*log2(log2(n))))))
-    # B = round(L ** 0.3) * 3
+    L = round(exp(sqrt((log(n)*log(log(n))))))
+
+    # Needs further fine-tuning for very large integers to optimize time and space
+    if len(str(n)) < 10:
+        B = L
+    elif len(str(n)) < 40:
+        B = round(exp(sqrt((log(n)*log(log(n))))) ** 0.6)
+    else:
+        B = round(exp(sqrt((log(n)*log(log(n))))) ** 0.5)
 
     SIEVE_LEN = 50000
 
@@ -362,18 +396,29 @@ def quadratic_sieve(n: int):
 
     sieve_start = 0
     sieve_end = min(SIEVE_LEN, L)
-    RELATIONS = len(factor_base) + round(0.2 * len(factor_base))
-    # RELATIONS = len(factor_base) + 10
+    sieve_start_neg = 0
+    sieve_end_neg = max(-SIEVE_LEN, -L)
+
+    RELATIONS = len(factor_base) + round(0.1 * len(factor_base))
+
 
     while len(smooth_numbers) < RELATIONS:
 
         smooth_nums, x_vals = get_b_smooth_numbers(n, factor_base, sieve_start, sieve_end)
+        smooth_numbers.extend(smooth_nums)
+        x.extend(x_vals)
 
+        smooth_nums, x_vals = get_b_smooth_numbers(n, factor_base, sieve_start_neg, sieve_end_neg)
         smooth_numbers.extend(smooth_nums)
         x.extend(x_vals)
 
         sieve_start = sieve_end
         sieve_end = min(sieve_end + SIEVE_LEN, L)
+        sieve_start_neg = sieve_end_neg
+        sieve_end_neg = max(sieve_end_neg - SIEVE_LEN, -L)
+
+        if sieve_start == sieve_end and sieve_start_neg == sieve_end_neg:
+            break
 
 
     matrix = build_exponent_matrix(smooth_numbers, factor_base)
@@ -409,7 +454,8 @@ def quadratic_sieve(n: int):
 
 # -------------------------- MAIN PROGRAM -------------------------------
 
-number_to_be_factored = 3744843080529615909019181510330554205500926021947
+
+number_to_be_factored = 15347
 
 start = time.time()
 f1, f2 = quadratic_sieve(number_to_be_factored)
@@ -418,6 +464,6 @@ end = time.time()
 print("Time needed in seconds: ", end - start, " to process a number with ", len(str(number_to_be_factored)), " digits")
 
 if f1 == f2 is None:
-    print("No solution found")
+    print("No solution found for ", number_to_be_factored)
 else:
     print("The factors of ", number_to_be_factored, "are:", f1, "*", f2)
