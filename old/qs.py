@@ -99,6 +99,7 @@ def tonelli_shanks(n: int, p: int) -> tuple[int, int]:
         t = (t*b*b) % p
         R = (R*b) % p
 
+
     return R, p-R
 
 
@@ -153,10 +154,9 @@ def get_b_smooth_numbers(n: int, factor_base: list[int], sieve_start: int, sieve
         step *= -1
 
     for x in range(sieve_start, sieve_end, step):
-        num = abs((x + n_root) ** 2 - n)
+        num = abs((x + n_root) ** 2 - n) % n
         q_xi.append(num)
         q_xi_log.append(round(log2(num)))
-
 
     if sieve_end > 0:
         for p in factor_base[1:]:
@@ -182,7 +182,7 @@ def get_b_smooth_numbers(n: int, factor_base: list[int], sieve_start: int, sieve
                         pos += p
 
 
-    threshold = 10
+    threshold = 20
 
     b_smooth_candidates = []
     x = []
@@ -383,8 +383,6 @@ def quadratic_sieve(n: int):
     # Needs further fine-tuning for very large integers to optimize time and space
     if len(str(n)) < 10:
         B = L
-    elif len(str(n)) < 40:
-        B = round(exp(sqrt((log(n)*log(log(n))))) ** 0.6)
     else:
         B = round(exp(sqrt((log(n)*log(log(n))))) ** 0.5)
 
@@ -399,7 +397,7 @@ def quadratic_sieve(n: int):
     sieve_start_neg = 0
     sieve_end_neg = max(-SIEVE_LEN, -L)
 
-    RELATIONS = len(factor_base) + round(0.1 * len(factor_base))
+    RELATIONS = len(factor_base) + 10
 
 
     while len(smooth_numbers) < RELATIONS:
@@ -455,7 +453,7 @@ def quadratic_sieve(n: int):
 # -------------------------- MAIN PROGRAM -------------------------------
 
 
-number_to_be_factored = 15347
+number_to_be_factored = 6172835808641975203638304919691358469663
 
 start = time.time()
 f1, f2 = quadratic_sieve(number_to_be_factored)
@@ -467,3 +465,6 @@ if f1 == f2 is None:
     print("No solution found for ", number_to_be_factored)
 else:
     print("The factors of ", number_to_be_factored, "are:", f1, "*", f2)
+
+
+
