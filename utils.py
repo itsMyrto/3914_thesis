@@ -91,7 +91,6 @@ def gauss_elimination(matrix: list[int], m: int, n: int) -> tuple[list[int], lis
             found = False
             for row in range(topmost_row + 1, n):
                 if get_bit(matrix[row], m - 1 - column) == 1:
-                    # print("Pivot found at: ", row, "and is changed with ", topmost_row)
                     found = True
                     temp = matrix[topmost_row]
                     matrix[topmost_row] = matrix[row]
@@ -100,24 +99,18 @@ def gauss_elimination(matrix: list[int], m: int, n: int) -> tuple[list[int], lis
 
             # if no pivot found it means that the column has only zeros, it's a free column
             if not found:
-                # print("Pivot not found, all zeros in ", column)
                 free_columns.append(column)
                 continue
-
-        # print("Pivot found in ", column, "at", topmost_row)
 
         for row in range(n):
             if row == topmost_row:
                 continue
             else:
                 if get_bit(matrix[row], m - 1 - column) == 1:
-                    # print("We are XORing ", row, "with", topmost_row)
                     matrix[row] ^= matrix[topmost_row]
-                    # print("with result ", matrix[row])
 
         pivot_columns.append(column)
         topmost_row += 1
-        # print("Next topmost row is: ", topmost_row)
 
         if topmost_row == n:
             break
